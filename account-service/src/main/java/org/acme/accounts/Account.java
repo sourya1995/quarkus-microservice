@@ -3,12 +3,13 @@ package org.acme.accounts;
 import java.math.BigDecimal;
 import java.util.Objects;
 
+import io.quarkus.hibernate.orm.panache.PanacheEntity;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 
 @Entity
-public class Account {
+public class Account extends PanacheEntity {
 	@Id
 	@GeneratedValue
 	private Long id;
@@ -86,6 +87,14 @@ public class Account {
 
 	public void setCustomerNumber(Long customerNumber) {
 		this.customerNumber = customerNumber;
+	}
+
+	public static long totalAccountsForCustomer(Long customerNumber) {
+		return find("customerNumber", customerNumber).count();
+	}
+
+	public static Account findByAccountNumber(Long accountNumber) {
+		return find("accountNumber", accountNumber).firstResult();
 	}
 
 	@Override
