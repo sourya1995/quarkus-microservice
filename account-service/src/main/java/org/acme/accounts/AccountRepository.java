@@ -9,4 +9,9 @@ public class AccountRepository implements PanacheRepository<Account> {
 		return find("accountNumber = ?1", accountNumber).firstResult();
 	}
 
+
+	public long totalAccountsForCustomer(Long customerNumber) {
+		return find("customerNumber = ?1", customerNumber).count();
+	}
+
 }

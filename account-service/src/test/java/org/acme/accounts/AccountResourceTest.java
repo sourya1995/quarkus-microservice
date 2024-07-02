@@ -241,4 +241,88 @@ public class AccountResourceTest {
         .then()
         .statusCode(400);
   }
+  
+  @Test
+  @Order(7)
+  void testBalanceRetrieval() {
+    BigDecimal balance =
+        given()
+            .when().get("/accounts/{accountNumber}/balance", 444666)
+            .then()
+            .statusCode(200)
+            .extract()
+            .as(BigDecimal.class);
+
+    assertThat(balance, equalTo(new BigDecimal("3499.12")));
+  }
+
+  @Test
+  @Order(8)
+  void testWithdrawFunds() {
+    BigDecimal balance =
+        given()
+            .when().get("/accounts/{accountNumber}/balance", 444666)
+            .then()
+            .statusCode(200)
+            .extract()
+            .as(BigDecimal.class);
+
+    assertThat(balance, equalTo(new BigDecimal("3499.12")));
+
+    BigDecimal withdrawalAmt = new BigDecimal("-345.15");
+    BigDecimal expectedBalance = new BigDecimal("3153.97");
+
+    given()
+        .contentType(ContentType.JSON)
+        .body(withdrawalAmt)
+        .when().post("/accounts/{accountNumber}/transaction", 444666)
+        .then()
+        // Changed from 204 to 200 when method changed to return a Map
+        .statusCode(200);
+
+    balance =
+        given()
+            .when().get("/accounts/{accountNumber}/balance", 444666)
+            .then()
+            .statusCode(200)
+            .extract()
+            .as(BigDecimal.class);
+
+    assertThat(balance, equalTo(expectedBalance));
+  }
+
+  @Test
+  @Order(9)
+  void testDepositFunds() {
+    BigDecimal balance =
+        given()
+            .when().get("/accounts/{accountNumber}/balance", 444666)
+            .then()
+            .statusCode(200)
+            .extract()
+            .as(BigDecimal.class);
+
+    assertThat(balance, equalTo(new BigDecimal("3153.97")));
+
+    BigDecimal depositAmt = new BigDecimal("139.43");
+    BigDecimal expectedBalance = new BigDecimal("3293.40");
+
+    given()
+        .contentType(ContentType.JSON)
+        .body(depositAmt)
+        .when().post("/accounts/{accountNumber}/transaction", 444666)
+        .then()
+        // Changed from 204 to 200 when method changed to return a Map
+        .statusCode(200);
+
+    balance =
+        given()
+            .when().get("/accounts/{accountNumber}/balance", 444666)
+            .then()
+            .statusCode(200)
+            .extract()
+            .as(BigDecimal.class);
+
+    assertThat(balance, equalTo(expectedBalance));
+  }
 }

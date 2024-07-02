@@ -9,7 +9,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 
 @Entity
-public class Account extends PanacheEntity {
+public class Account {
 	@Id
 	@GeneratedValue
 	private Long id;
@@ -37,8 +37,9 @@ public class Account extends PanacheEntity {
 		balance = balance.subtract(amount);
 	}
 
-	public void addFunds(BigDecimal amount) {
+	public BigDecimal addFunds(BigDecimal amount) {
 		balance = balance.add(amount);
+		return balance;
 	}
 
 	public Long getAccountNumber() {
@@ -87,14 +88,6 @@ public class Account extends PanacheEntity {
 
 	public void setCustomerNumber(Long customerNumber) {
 		this.customerNumber = customerNumber;
-	}
-
-	public static long totalAccountsForCustomer(Long customerNumber) {
-		return find("customerNumber", customerNumber).count();
-	}
-
-	public static Account findByAccountNumber(Long accountNumber) {
-		return find("accountNumber", accountNumber).firstResult();
 	}
 
 	@Override
