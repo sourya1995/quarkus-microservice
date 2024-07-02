@@ -6,3 +6,4 @@ INSERT INTO account(id, accountNumber, accountStatus, balance, customerName, cus
 INSERT INTO account(id, accountNumber, accountStatus, balance, customerName, customerNumber) VALUES (nextval('hibernate_sequence'), 987654321, 0, 781.82, 'Tom Baker', 908990);
 INSERT INTO account(id, accountNumber, accountStatus, balance, customerName, customerNumber) VALUES (nextval('hibernate_sequence'), 5465, 0, 239.33, 'Alex Trebek', 776868);
 INSERT INTO account(id, accountNumber, accountStatus, balance, customerName, customerNumber) VALUES (nextval('hibernate_sequence'), 78790, 0, 439.01, 'Vanna White', 444222);
+INSERT INTO account(id, accountNumber, accountStatus, balance, customerName, customerNumber) VALUES (9, 999999999, 0, 999999999.01, 'Readiness HealthCheck', 99999999999);
