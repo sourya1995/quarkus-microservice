@@ -97,6 +97,11 @@
 			<groupId>io.quarkus</groupId>
 			<artifactId>quarkus-smallrye-fault-tolerance</artifactId>
 		</dependency>
+		<dependency>
+			<groupId>io.quarkus</groupId>
+			<artifactId>quarkus-smallrye-metrics</artifactId>
+			<version>3.12.0</version>
+		</dependency>
 	</dependencies>
 
 	<build>

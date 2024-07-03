@@ -19,9 +19,11 @@ import org.eclipse.microprofile.faulttolerance.Retry;
 import org.eclipse.microprofile.faulttolerance.Timeout;
 import org.eclipse.microprofile.faulttolerance.exceptions.BulkheadException;
 import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
+import org.eclipse.microprofile.metrics.Histogram;
+import org.eclipse.microprofile.metrics.annotation.ConcurrentGauge;
+import org.eclipse.microprofile.metrics.annotation.Metric;
 import org.eclipse.microprofile.rest.client.RestClientBuilder;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
-
 
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
@@ -37,6 +39,10 @@ import jakarta.ws.rs.core.Response;
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class TransactionResource {
+
+	@Inject
+	@Metric(name = "deposits", description = "Deposit histogram")
+	Histogram histogram;
 	@Inject
 	@RestClient
 	AccountService accountService;
@@ -44,10 +50,16 @@ public class TransactionResource {
 	@ConfigProperty(name = "account.service", defaultValue = "http://localhost:8080")
 	String accountServiceUrl;
 
+	void updateDepositHistogram(BigDecimal dollars) {
+		histogram.update(dollars.longValue());
+	}
+
+	@ConcurrentGauge(name = "concurrentBlockingTransactions", absolute = true, description = "Number of concurrent transactions using blocking API")
 	@POST
 	@Path("/{accountNumber}")
 	public Map<String, List<String>> newTransaction(@PathParam("accountNumber") Long accountNumber, BigDecimal amount) {
 		try {
+			updateDepositHistogram(amount);
 			return accountService.transact(accountNumber, amount);
 		} catch (Throwable t) {
 			t.printStackTrace();
@@ -68,31 +80,34 @@ public class TransactionResource {
 				.readTimeout(1400, TimeUnit.MILLISECONDS).build(AccountServiceProgrammatic.class);
 
 		accountService.transact(accountNumber, amount);
+		updateDepositHistogram(amount);
 		return Response.ok().build();
 	}
-	
+
 	public Response bulkheadFallbackGetBalance(Long accountNumber, BigDecimal amount) {
 		return Response.status(Response.Status.TOO_MANY_REQUESTS).build();
 	}
-	
+
 	@POST
 	@Path("/async/{accountNumber}")
-	public CompletionStage<Map<String, List<String>>> newTransactionAsync(@PathParam("accountNumber") Long accountNumber, BigDecimal amount) {
+	public CompletionStage<Map<String, List<String>>> newTransactionAsync(
+			@PathParam("accountNumber") Long accountNumber, BigDecimal amount) {
+		updateDepositHistogram(amount);
 		return accountService.transactAsync(accountNumber, amount);
 	}
-	
+
 	@POST
 	@Path("/api/async/{accountNumber}")
-	public CompletionStage<Void> newTransactionWithApiAsync(@PathParam("accountNumber") Long accountNumber, BigDecimal amount)
-			throws MalformedURLException {
+	public CompletionStage<Void> newTransactionWithApiAsync(@PathParam("accountNumber") Long accountNumber,
+			BigDecimal amount) throws MalformedURLException {
 		AccountServiceProgrammatic accountService = (AccountServiceProgrammatic) RestClientBuilder.newBuilder()
 				.baseUrl(new URL(accountServiceUrl)).connectTimeout(500, TimeUnit.MILLISECONDS)
 				.readTimeout(1400, TimeUnit.MILLISECONDS).build(AccountServiceProgrammatic.class);
 
 		return accountService.transactAsync(accountNumber, amount);
-		
+
 	}
-	
+
 	@GET
 	@Path("/{accountNumber}/balance")
 	@Timeout(100)
@@ -105,7 +120,7 @@ public class TransactionResource {
 		String balance = accountService.getBalance(accountNumber).toString();
 		return Response.ok(balance).build();
 	}
-	
+
 	public Response timeoutFallbackGetBalance(Long accountNumber) {
 		return Response.status(Response.Status.GATEWAY_TIMEOUT).build();
 	}

@@ -15,6 +15,8 @@ import java.util.concurrent.CompletionStage;
 
 import org.acme.accounts.events.OverdraftLimitUpdate;
 import org.acme.accounts.events.Overdrawn;
+import org.eclipse.microprofile.metrics.Counter;
+import org.eclipse.microprofile.metrics.annotation.Metric;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
@@ -192,9 +194,11 @@ public class AccountResource {
 
 	@Provider
 	public static class ErrorMapper implements ExceptionMapper<Exception> {
-
+		@Metric(name="ErrorMapperCounter", description = "Number of times the AccountResource ErrorMapper is invoked")
+		Counter errorMapperCounter;
 		@Override
 		public Response toResponse(Exception exception) {
+			errorMapperCounter.inc();
 			int code = 500;
 			if (exception instanceof WebApplicationException) {
 				code = ((WebApplicationException) exception).getResponse().getStatus();
