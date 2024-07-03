@@ -18,6 +18,7 @@ public class Account {
 	private Long customerNumber;
 	private String customerName;
 	private BigDecimal balance;
+	private BigDecimal overdraftLimit;
 	private AccountStatus accountStatus = AccountStatus.OPEN;
 
 	public void markOverdrawn() {
@@ -88,6 +89,16 @@ public class Account {
 
 	public void setCustomerNumber(Long customerNumber) {
 		this.customerNumber = customerNumber;
+	}
+	
+	
+
+	public BigDecimal getOverdraftLimit() {
+		return overdraftLimit;
+	}
+
+	public void setOverdraftLimit(BigDecimal overdraftLimit) {
+		this.overdraftLimit = overdraftLimit;
 	}
 
 	@Override
