@@ -1,7 +1,5 @@
 package org.acme.accounts;
 
-
-
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -15,14 +13,19 @@ import java.util.concurrent.CompletionStage;
 
 import org.acme.accounts.events.OverdraftLimitUpdate;
 import org.acme.accounts.events.Overdrawn;
+import org.apache.kafka.common.header.internals.RecordHeaders;
 import org.eclipse.microprofile.metrics.Counter;
 import org.eclipse.microprofile.metrics.annotation.Metric;
+import org.eclipse.microprofile.opentracing.Traced;
 import org.eclipse.microprofile.reactive.messaging.Channel;
 import org.eclipse.microprofile.reactive.messaging.Emitter;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.eclipse.microprofile.reactive.messaging.Message;
 
+import io.opentracing.Tracer;
+import io.opentracing.contrib.kafka.TracingKafkaUtils;
 import io.smallrye.reactive.messaging.annotations.Blocking;
+import io.smallrye.reactive.messaging.kafka.api.OutgoingKafkaRecordMetadata;
 import jakarta.annotation.PostConstruct;
 import jakarta.inject.Inject;
 import jakarta.json.Json;
@@ -68,37 +71,38 @@ public class AccountResource {
 
 		return account;
 	}
-	
+
 	@GET
 	@Path("/{accountNumber}/balance")
 	public BigDecimal getBalance(@PathParam("accountNumber") Long accountNumber) {
 		Account account = accountRepository.findByAccountNumber(accountNumber);
-		
+
 		if (account == null) {
 			throw new WebApplicationException("Account with " + accountNumber + " does not exist.", 404);
 		}
-		
+
 		return account.getBalance();
-		
+
 	}
-	
+
 	@POST
-	  @Path("{accountNumber}/transaction")
-	  @Transactional
-	  public Map<String, List<String>> transact(@Context HttpHeaders headers, @PathParam("accountNumber") Long accountNumber, BigDecimal amount) {
-	    Account entity = accountRepository.findByAccountNumber(accountNumber);
+	@Path("{accountNumber}/transaction")
+	@Transactional
+	public Map<String, List<String>> transact(@Context HttpHeaders headers,
+			@PathParam("accountNumber") Long accountNumber, BigDecimal amount) {
+		Account entity = accountRepository.findByAccountNumber(accountNumber);
 
-	    if (entity == null) {
-	      throw new WebApplicationException("Account with " + accountNumber + " does not exist.", 404);
-	    }
+		if (entity == null) {
+			throw new WebApplicationException("Account with " + accountNumber + " does not exist.", 404);
+		}
 
-	    if (entity.getAccountStatus().equals(AccountStatus.OVERDRAWN)) {
-	      throw new WebApplicationException("Account is overdrawn, no further withdrawals permitted", 409);
-	    }
+		if (entity.getAccountStatus().equals(AccountStatus.OVERDRAWN)) {
+			throw new WebApplicationException("Account is overdrawn, no further withdrawals permitted", 409);
+		}
 
-	    entity.setBalance(entity.addFunds(amount)); 
-	    return headers.getRequestHeaders();
-	  }
+		entity.setBalance(entity.addFunds(amount));
+		return headers.getRequestHeaders();
+	}
 
 	@POST
 	@Transactional
@@ -110,56 +114,64 @@ public class AccountResource {
 		accountRepository.persist(account);
 		return Response.status(201).entity(account).build();
 	}
-	
+
 	@Inject
 	@Channel("account-overdrawn")
 	Emitter<Overdrawn> emitter;
-	
+
 	int ackedMessages = 0;
 	List<Throwable> failures = new ArrayList<>();
-	
-	
+
+	@Inject
+	Tracer tracer;
 
 	@SuppressWarnings("unchecked")
 	@PUT
 	@Path("{accountNumber}/withdrawal")
+	@Traced(operationName = "withdraw-from-account")
 	@Transactional
 	public CompletionStage<Account> withdrawal(@PathParam("accountNumber") Long accountNumber, String amount) {
 		Account entity = accountRepository.findByAccountNumber(accountNumber);
 		if (entity == null) {
 			throw new WebApplicationException("Account with " + accountNumber + " does not exist.", 404);
 		}
-		
 
-		if (entity.getAccountStatus().equals(AccountStatus.OVERDRAWN) && entity.getBalance().compareTo(entity.getOverdraftLimit()) <= 0) {
+		if (entity.getAccountStatus().equals(AccountStatus.OVERDRAWN)
+				&& entity.getBalance().compareTo(entity.getOverdraftLimit()) <= 0) {
 			throw new WebApplicationException("Account is overdrawn, no further withdrawals permitted", 409);
 		}
 
 		entity.withdrawFunds(new BigDecimal(amount));
-		if(entity.getBalance().compareTo(BigDecimal.ZERO) < 0) {
+		tracer.activeSpan().setTag("accountNumber", accountNumber);
+		tracer.activeSpan().setBaggageItem("withdrawalAmount", amount);
+		if (entity.getBalance().compareTo(BigDecimal.ZERO) < 0) {
 			entity.markOverdrawn();
 			accountRepository.persist(entity);
-			Overdrawn payload = new Overdrawn(entity.getAccountNumber(), entity.getCustomerNumber(), entity.getBalance(), entity.getOverdraftLimit());
+			Overdrawn payload = new Overdrawn(entity.getAccountNumber(), entity.getCustomerNumber(),
+					entity.getBalance(), entity.getOverdraftLimit());
 //		payload only ->	return emitter.send(payload).thenCompose(empty -> CompletableFuture.completedFuture(entity)); 
-			
+			RecordHeaders headers = new RecordHeaders();
+			TracingKafkaUtils.inject(tracer.activeSpan().context(), headers, tracer);
+			OutgoingKafkaRecordMetadata<Object> kafkaMetadata = OutgoingKafkaRecordMetadata.builder()
+					.withHeaders(headers).build();
+
 			CompletableFuture<Account> future = new CompletableFuture<>();
-			emitter.send(Message.of(payload, () ->{
+			emitter.send(Message.of(payload, () -> {
 				ackedMessages++;
 				future.complete(entity);
 				return CompletableFuture.completedFuture(null);
-			},
-					reason -> {
-						failures.add(reason);
-						return CompletableFuture.completedFuture(null);
-					}));
+			}, reason -> {
+				failures.add(reason);
+				return CompletableFuture.completedFuture(null);
+			}));
 			return future;
 		}
-		
+
 		accountRepository.persist(entity);
 		return CompletableFuture.completedFuture(entity);
 	}
-	
-	@Incoming("overdraft-update") //will use another thread
+
+	@Incoming("overdraft-update") // will use another thread
 	@Blocking
 	@Transactional
 	public void processOverdraftUpdate(OverdraftLimitUpdate overdraftLimitUpdate) {
@@ -194,8 +206,9 @@ public class AccountResource {
 
 	@Provider
 	public static class ErrorMapper implements ExceptionMapper<Exception> {
-		@Metric(name="ErrorMapperCounter", description = "Number of times the AccountResource ErrorMapper is invoked")
+		@Metric(name = "ErrorMapperCounter", description = "Number of times the AccountResource ErrorMapper is invoked")
 		Counter errorMapperCounter;
+
 		@Override
 		public Response toResponse(Exception exception) {
 			errorMapperCounter.inc();
