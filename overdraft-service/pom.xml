@@ -122,6 +122,10 @@
 			<artifactId>opentracing-kafka-client</artifactId>
 			<version>0.1.15</version>
 		</dependency>
+		<dependency>
+			<groupId>io.quarkus</groupId>
+			<artifactId>quarkus-smallrye-openapi</artifactId>
+		</dependency>
 
 
 	</dependencies>
