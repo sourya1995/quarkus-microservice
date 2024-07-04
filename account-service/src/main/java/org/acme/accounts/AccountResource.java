@@ -22,6 +22,7 @@ import io.opentracing.Tracer;
 import io.opentracing.contrib.kafka.TracingKafkaUtils;
 import io.smallrye.reactive.messaging.annotations.Blocking;
 import io.smallrye.reactive.messaging.kafka.api.OutgoingKafkaRecordMetadata;
+import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.json.Json;
 import jakarta.json.JsonObjectBuilder;
@@ -46,6 +47,13 @@ import jakarta.ws.rs.ext.Provider;
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class AccountResource {
+
+	@RolesAllowed("customer")
+	@GET
+	@Path("/jwt-secure/{acctNumber}/balance")
+	public BigDecimal getBalanceJWT(@PathParam("acctNumber") Long accountNumber) {
+		return getBalance(accountNumber);
+	}
 
 	@Inject
 	AccountRepository accountRepository;

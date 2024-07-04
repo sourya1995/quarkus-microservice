@@ -7,7 +7,7 @@ import java.util.Optional;
 import org.eclipse.microprofile.config.inject.ConfigProperties;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
-
+import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
@@ -73,6 +73,15 @@ public class BankResource {
 		
 		return map;
 	}
+	
+
+    @RolesAllowed("bankadmin")
+    @GET
+    @Produces(MediaType.APPLICATION_JSON)
+    @Path("/secure/secrets")
+    public Map<String, String> secureGetSecrets() {
+        return getSecrets();
+    }
 	
 	@GET
     @Produces(MediaType.APPLICATION_JSON)

@@ -25,6 +25,7 @@ import org.eclipse.microprofile.metrics.annotation.Metric;
 import org.eclipse.microprofile.rest.client.RestClientBuilder;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 
+import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
@@ -52,6 +53,25 @@ public class TransactionResource {
 
 	void updateDepositHistogram(BigDecimal dollars) {
 		histogram.update(dollars.longValue());
+	}
+
+	@GET
+	@RolesAllowed("customer")
+	@Path("/jwt-secure/{acctnumber}/balance")
+	@Produces(MediaType.APPLICATION_JSON)
+	@Consumes(MediaType.APPLICATION_JSON)
+	public Response jwtGetBalance(@PathParam("acctnumber") Long accountNumber) {
+		String balance = accountService.getBalanceSecure(accountNumber).toString();
+
+		return Response.ok(balance).build();
+	}
+
+	@GET
+	@Path("/config-secure/{accountNumber}/balance")
+	@Produces(MediaType.APPLICATION_JSON)
+	@Consumes(MediaType.APPLICATION_JSON)
+	public Response secureConfigGetBalance(@PathParam("accountNumber") Long accountNumber) {
+		return getBalance(accountNumber);
 	}
 
 	@ConcurrentGauge(name = "concurrentBlockingTransactions", absolute = true, description = "Number of concurrent transactions using blocking API")
